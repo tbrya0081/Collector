@@ -56,7 +56,12 @@ client.connect(function (err) {
 });
 
 
-var lib = require('cometd');
+let lib = require('cometd');
+let Client3 = require('azure-iot-device').Client;
+let Protocol = require('azure-iot-device-mqtt').MqttWs;
+let Message = require('azure-iot-device').Message;
+let client3 = Client3.fromConnectionString("HostName=BWHUB.azure-devices.net;DeviceId=Bid1000;SharedAccessKey=KKUTauscuqGpWxoWVKnJwXM9rfKCZtNMSylMsE4zYIY=", Protocol);
+
 var cometd = new lib.CometD();
 var cometdURL = "https://live.proxibid.com/BidderWeb/cometd";
 cometd.configure(cometdURL, 'debug');
@@ -90,16 +95,30 @@ cometd.handshake();
 
     const uuid = require('uuid');
     console.log('The results: ' + JSON.stringify(results));
+    function printResultFor(op) {
+        return function printResult(err, res) {
+            if (err) console.log(op + ' error: ' + err.toString());
+            if (res) console.log(op + ' status: ' + res.constructor.name);
+        };
+    }
+
 
     Array.from(results).forEach(function (element) {
         cometd.subscribe('/com/proxibid/livebidding/auction/public/' + element, (message) => {
             const db = client.db(dbName);
             const result = client.db("test").collection("actionMessages").insertOne(message.data);
-
-            client2.execute('INSERT INTO auctioninfo.selebid_message (id, message, created) VALUES (?, ?, ?)', [ uuid.v1(), message.data.toString(), new Date() ], { prepare: true })
+            console.log("Sending Message " + JSON.stringify(message.data))
+            client2.execute('INSERT INTO auctioninfo.bid_message (id, message, created) VALUES (?, ?, ?)', [ uuid.v1(), message.data.toString(), new Date() ], { prepare: true })
                 .then(result => console.log('C* Success!'));
 
-            console.log(message.data);
+                let message2 = new Message(JSON.stringify(message.data))
+
+            console.log("Sending message to IOT hub: " + message2);
+            client3.sendEvent(message2, printResultFor('send'));
+
+
+
+
         });
     });
 
